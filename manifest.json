@@ -9,6 +9,7 @@
     "48": "assets/icons/icon.png",
     "128": "assets/icons/icon.png"
   },
+  "permissions": ["storage"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

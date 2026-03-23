@@ -3,31 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extension Simulation</title>
+    <title>Extension Auth & Profile Simulation</title>
     <link rel="stylesheet" href="styles.css">
     <style>
         body {
-            font-family: sans-serif;
+            font-family: 'Inter', sans-serif;
             background-color: #f0f2f5;
-            height: 2000px; /* To test fixed positioning */
-            padding: 50px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
         }
-        h1 { color: #333; }
-        p { color: #666; max-width: 600px; line-height: 1.6; }
+        .info {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            max-width: 600px;
+            text-align: center;
+        }
+        code { background: #f1f3f4; padding: 4px 8px; border-radius: 6px; font-weight: 500; }
+        .steps { text-align: left; margin-top: 20px; }
+        .steps li { margin-bottom: 10px; color: #555; }
     </style>
 </head>
 <body>
-    <h1>Nexonetics Chat Extension Simulation</h1>
-    <p>This page simulates how the extension will look when injected into a website. The floating icon should appear at the bottom-right corner.</p>
-    <p>Click the launcher to open the chat window.</p>
+    <div class="info">
+        <h1>Auth & Profile Simulation</h1>
+        <p>This page simulates the full authentication lifecycle of the Nexonetics extension.</p>
+        <div class="steps">
+            <h3>How to test:</h3>
+            <ul>
+                <li>1. Click the floating chat icon (bottom-right).</li>
+                <li>2. Enter any credentials and click <code>Login</code>.</li>
+                <li>3. Watch it transition to the Chat view with a <strong>mocked user profile</strong>.</li>
+                <li>4. Notice the <strong>Avatar</strong> and <strong>Full Name</strong> in the header.</li>
+                <li>5. Click the <strong>Logout icon</strong> to return to the login screen.</li>
+            </ul>
+        </div>
+    </div>
 
-    <!-- Simulation Script (slightly modified content.js logic for local testing) -->
     <script>
-        // Mock chrome.runtime.getURL
+        // Mock chrome API
+        let mockStorage = {};
         window.chrome = {
             runtime: {
                 getURL: (path) => 'assets/icons/icon.png'
+            },
+            storage: {
+                local: {
+                    get: (keys, callback) => {
+                        let result = {};
+                        keys.forEach(k => result[k] = mockStorage[k]);
+                        callback(result);
+                    },
+                    set: (data, callback) => {
+                        Object.assign(mockStorage, data);
+                        if(callback) callback();
+                    },
+                    remove: (keys, callback) => {
+                        keys.forEach(k => delete mockStorage[k]);
+                        if(callback) callback();
+                    }
+                }
             }
+        };
+
+        // Mock Fetch for API
+        const originalFetch = window.fetch;
+        window.fetch = async (url, options) => {
+            if (url.includes('/auth/login/')) {
+                console.log("Mocking Login Request:", JSON.parse(options.body));
+                return {
+                    ok: true,
+                    json: async () => ({
+                        access_token: 'mock_token_123',
+                        refresh_token: 'mock_refresh_456'
+                    })
+                };
+            }
+            if (url.includes('/auth/me/')) {
+                console.log("Mocking Profile Request");
+                return {
+                    ok: true,
+                    json: async () => ({
+                        id: 1,
+                        username: 'aslam_nexonetics',
+                        fullName: 'Aslam Nexonetics',
+                        email: 'aslam@nexonetics.com',
+                        avatarUrl: 'https://i.pravatar.cc/150?u=aslam'
+                    })
+                };
+            }
+            return originalFetch(url, options);
         };
     </script>
     <script src="content.js"></script>
