@@ -1,8 +1,6 @@
 (function() {
-  const API_BASE_URL = 'https://api3.made2tech.com/api/v1';
   console.log("Nexonetics Chat Extension loaded.");
 
-  let authToken = null;
   let currentUser = null;
 
   // Create Launcher Button
@@ -17,25 +15,25 @@
   document.body.appendChild(chatContainer);
 
   const initApp = async () => {
-    chrome.storage.local.get(['access_token'], async (result) => {
-      if (result.access_token) {
-        authToken = result.access_token;
-        const success = await fetchUserProfile();
-        if (success) {
-          showChatView();
-        } else {
-          handleLogout();
-        }
+    const authenticated = await Auth.isAuthenticated();
+    if (authenticated) {
+      const success = await fetchUserProfile();
+      if (success) {
+        showChatView();
       } else {
+        await Auth.logout();
         showLoginView();
       }
-    });
+    } else {
+      showLoginView();
+    }
   };
 
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/me/`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
+      const authHeader = await Auth.getAuthHeader();
+      const response = await fetch(`${Auth.API_BASE_URL}/auth/me/`, {
+        headers: { ...authHeader }
       });
       if (response.ok) {
         currentUser = await response.json();
@@ -47,47 +45,54 @@
     return false;
   };
 
-  const handleLogout = () => {
-    chrome.storage.local.remove(['access_token', 'refresh_token'], () => {
-      authToken = null;
-      currentUser = null;
-      showLoginView();
-    });
+  const handleLogout = async () => {
+    await Auth.logout();
+    currentUser = null;
+    showLoginView();
   };
 
   const showLoginView = () => {
     chatContainer.innerHTML = `
-      <div id="nexonetics-chat-header">
-        <h3>Nexonetics Login</h3>
-        <span id="nexonetics-chat-close">&times;</span>
-      </div>
       <div id="nexonetics-login-view">
-        <h2>Welcome Back</h2>
-        <p>Please login to your account to continue</p>
-        <div class="nexonetics-input-group">
-          <label>Email or Username</label>
-          <input type="text" id="nexonetics-email" placeholder="Enter your email or username">
+        <span id="nexonetics-chat-close" style="position: absolute; right: 20px; top: 20px; color: white;">&times;</span>
+        <div class="nexonetics-welcome-container">
+          <h1 class="nexonetics-welcome-text">Welcome</h1>
+          <h1 class="nexonetics-back-text">Back!</h1>
         </div>
+        
         <div class="nexonetics-input-group">
-          <label>Password</label>
-          <input type="password" id="nexonetics-password" placeholder="••••••••">
+          <div class="nexonetics-input-wrapper">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <input type="text" id="nexonetics-email" placeholder="Email or Username">
+          </div>
         </div>
-        <button id="nexonetics-login-btn">Login</button>
-        <div id="nexonetics-login-error">Invalid credentials. Please try again.</div>
+
+        <div class="nexonetics-input-group">
+          <div class="nexonetics-input-wrapper">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <input type="password" id="nexonetics-password" placeholder="Password">
+          </div>
+        </div>
+
+        <button id="nexonetics-login-btn">Log In</button>
+        <div id="nexonetics-login-error"></div>
       </div>
     `;
     setupLoginListeners();
   };
 
-  const showChatView = () => {
-    const avatar = currentUser?.avatarUrl || 'https://via.placeholder.com/32';
-    const name = currentUser?.fullName || currentUser?.username || 'User';
-
+  const showChatView = async () => {
     chatContainer.innerHTML = `
       <div id="nexonetics-chat-header">
         <div class="nexonetics-user-profile">
-          <img src="${avatar}" alt="Avatar" class="nexonetics-avatar">
-          <h3>${name}</h3>
+          <img src="${currentUser?.avatarUrl || 'https://via.placeholder.com/32'}" alt="Avatar" class="nexonetics-avatar">
+          <h3>Chats</h3>
         </div>
         <div id="nexonetics-header-actions">
           <button id="nexonetics-logout-btn" title="Logout">
@@ -98,8 +103,93 @@
           <span id="nexonetics-chat-close">&times;</span>
         </div>
       </div>
+      <div id="nexonetics-chat-list">
+        <div class="nexonetics-loading-container" style="display: flex; justify-content: center; padding: 40px;">
+          <div class="nexonetics-loading-spinner" style="border-top-color: var(--primary-color);"></div>
+        </div>
+      </div>
+    `;
+
+    const closeBtn = document.getElementById('nexonetics-chat-close');
+    const logoutBtn = document.getElementById('nexonetics-logout-btn');
+    if (closeBtn) closeBtn.onclick = () => toggleWindow(false);
+    if (logoutBtn) logoutBtn.onclick = handleLogout;
+
+    try {
+      const chats = await Chat.fetchChatList();
+      renderChatList(chats);
+    } catch (err) {
+      document.getElementById('nexonetics-chat-list').innerHTML = `
+        <div id="nexonetics-empty-list">
+          <p>Failed to load chats. Please try again.</p>
+        </div>
+      `;
+    }
+  };
+
+  const renderChatList = (chats) => {
+    const listContainer = document.getElementById('nexonetics-chat-list');
+    if (!chats || chats.length === 0) {
+      listContainer.innerHTML = `
+        <div id="nexonetics-empty-list">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <p>No chats available in ${Chat.COLLECTION}</p>
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = chats.map(chat => `
+      <div class="nexonetics-chat-item" data-id="${chat.id}">
+        <img src="${chat.avatar_url || 'https://via.placeholder.com/48'}" alt="Avatar" class="nexonetics-avatar">
+        <div class="nexonetics-chat-info">
+          <div class="nexonetics-chat-name-row">
+            <span class="nexonetics-chat-name">${chat.display_name || chat.channel_name}</span>
+            <span class="nexonetics-chat-time">${chat.last_activity ? new Date(chat.last_activity).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+          </div>
+          <div class="nexonetics-chat-snippet">${chat.last_message?.message_text || 'No messages yet'}</div>
+        </div>
+      </div>
+    `).join('');
+
+    listContainer.querySelectorAll('.nexonetics-chat-item').forEach(item => {
+      item.onclick = () => {
+        const chatId = item.getAttribute('data-id');
+        const chat = chats.find(c => c.id == chatId);
+        showChatRoomView(chat);
+      };
+    });
+  };
+
+  const showChatRoomView = async (room) => {
+    // Create or show room container
+    let roomContainer = document.getElementById('nexonetics-chat-room-container');
+    if (!roomContainer) {
+      roomContainer = document.createElement('div');
+      roomContainer.id = 'nexonetics-chat-room-container';
+      chatContainer.appendChild(roomContainer);
+    }
+    roomContainer.classList.add('active');
+
+    roomContainer.innerHTML = `
+      <div id="nexonetics-chat-header">
+        <button class="nexonetics-back-btn" id="nexonetics-back-to-list">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"></path>
+          </svg>
+        </button>
+        <div class="nexonetics-user-profile">
+          <img src="${room.avatar_url || 'https://via.placeholder.com/32'}" alt="Avatar" class="nexonetics-avatar">
+          <h3>${room.display_name || room.channel_name}</h3>
+        </div>
+        <span id="nexonetics-chat-close">&times;</span>
+      </div>
       <div id="nexonetics-chat-body">
-        <div class="chat-bubble received">Hello ${name}! How can we help you today?</div>
+        <div class="nexonetics-loading-container" style="display: flex; justify-content: center; padding: 40px;">
+          <div class="nexonetics-loading-spinner" style="border-top-color: var(--primary-color);"></div>
+        </div>
       </div>
       <div id="nexonetics-chat-footer">
         <input type="text" id="nexonetics-chat-input" placeholder="Type a message...">
@@ -110,7 +200,75 @@
         </button>
       </div>
     `;
-    setupChatListeners();
+
+    const backBtn = document.getElementById('nexonetics-back-to-list');
+    const closeBtn = roomContainer.querySelector('#nexonetics-chat-close');
+    const inputField = document.getElementById('nexonetics-chat-input');
+    const sendBtn = document.getElementById('nexonetics-chat-send');
+    const chatBody = document.getElementById('nexonetics-chat-body');
+
+    backBtn.onclick = () => {
+      roomContainer.classList.remove('active');
+      showChatView();
+    };
+    closeBtn.onclick = () => toggleWindow(false);
+
+    const loadMessages = async () => {
+      try {
+        const messages = await Chat.fetchMessages(room.id);
+        renderMessages(messages);
+      } catch (err) {
+        chatBody.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Failed to load messages.</p>';
+      }
+    };
+
+    const renderMessages = (messages) => {
+      const sortedMessages = [...messages].reverse();
+      chatBody.innerHTML = sortedMessages.map(msg => `
+        <div class="chat-bubble ${msg.user_id === currentUser.id ? 'sent' : 'received'}">
+          ${msg.message_text}
+          <span class="chat-bubble-time">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+        </div>
+      `).join('');
+      chatBody.scrollTop = chatBody.scrollHeight;
+    };
+
+    const sendMessage = async () => {
+      const text = inputField.value.trim();
+      if (!text) return;
+
+      inputField.disabled = true;
+      sendBtn.style.opacity = '0.5';
+
+      try {
+        await Chat.sendMessage(room.id, text);
+        inputField.value = '';
+        await loadMessages();
+      } catch (err) {
+        console.error("Failed to send message", err);
+      } finally {
+        inputField.disabled = false;
+        sendBtn.style.opacity = '1';
+        inputField.focus();
+      }
+    };
+
+    sendBtn.onclick = sendMessage;
+    inputField.onkeypress = (e) => {
+      if (e.key === 'Enter') sendMessage();
+    };
+
+    // Initial load
+    await loadMessages();
+
+        // Start polling for new messages (every 5 seconds)
+    const pollInterval = setInterval(async () => {
+      if (roomContainer.classList.contains('active') && chatContainer.classList.contains('open')) {
+        await loadMessages();
+      } else {
+        clearInterval(pollInterval);
+      }
+    }, 5000);
   };
 
   const setupLoginListeners = () => {
@@ -120,7 +278,7 @@
     const errorMsg = document.getElementById('nexonetics-login-error');
     const closeBtn = document.getElementById('nexonetics-chat-close');
 
-    closeBtn.onclick = () => toggleWindow(false);
+    if (closeBtn) closeBtn.onclick = () => toggleWindow(false);
 
     loginBtn.onclick = async () => {
       const email_or_username = emailInput.value.trim();
@@ -129,66 +287,20 @@
       if (!email_or_username || !password) return;
 
       loginBtn.classList.add('nexonetics-loading');
-      loginBtn.textContent = 'Logging in...';
+      loginBtn.innerHTML = '<div class="nexonetics-loading-spinner"></div> LOGGING IN...';
       errorMsg.style.display = 'none';
 
       try {
-        const response = await fetch(`${API_BASE_URL}/auth/login/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email_or_username, password })
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.access_token) {
-          chrome.storage.local.set({ 
-            access_token: data.access_token,
-            refresh_token: data.refresh_token
-          }, async () => {
-            authToken = data.access_token;
-            await fetchUserProfile();
-            showChatView();
-          });
-        } else {
-          errorMsg.textContent = data.detail || data.message || 'Login failed';
-          errorMsg.style.display = 'block';
-        }
+        await Auth.login(email_or_username, password);
+        await fetchUserProfile();
+        showChatView();
       } catch (err) {
-        errorMsg.textContent = 'Connection error. Please try again.';
+        errorMsg.textContent = err.message || 'Login failed. Please try again.';
         errorMsg.style.display = 'block';
       } finally {
         loginBtn.classList.remove('nexonetics-loading');
-        loginBtn.textContent = 'Login';
+        loginBtn.innerHTML = 'Log In';
       }
-    };
-  };
-
-  const setupChatListeners = () => {
-    const closeBtn = document.getElementById('nexonetics-chat-close');
-    const logoutBtn = document.getElementById('nexonetics-logout-btn');
-    const inputField = document.getElementById('nexonetics-chat-input');
-    const sendBtn = document.getElementById('nexonetics-chat-send');
-    const chatBody = document.getElementById('nexonetics-chat-body');
-
-    closeBtn.onclick = () => toggleWindow(false);
-    logoutBtn.onclick = handleLogout;
-
-    const sendMessage = () => {
-      const text = inputField.value.trim();
-      if (text) {
-        const bubble = document.createElement('div');
-        bubble.className = 'chat-bubble sent';
-        bubble.textContent = text;
-        chatBody.appendChild(bubble);
-        inputField.value = '';
-        chatBody.scrollTop = chatBody.scrollHeight;
-      }
-    };
-
-    sendBtn.onclick = sendMessage;
-    inputField.onkeypress = (e) => {
-      if (e.key === 'Enter') sendMessage();
     };
   };
 

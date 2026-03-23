@@ -2,21 +2,25 @@
   --primary-color: #77BEF0;
   --primary-hover: #5DA8E0;
   --secondary-color: #20A090;
-  --bg-color: rgba(250, 249, 246, 0.95);
+  --bg-color: #FFFFFF;
+  --login-bg-color: #090321;
   --text-primary: #000E08;
   --text-secondary: #797C7B;
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+  --text-white: #FFFFFF;
+  --input-bg: #3C374F;
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  --button-gradient: linear-gradient(90deg, #77BEF0 0%, #20A090 100%);
 }
 
 /* Floating Launcher Button */
 #nexonetics-chat-launcher {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 60px;
-  height: 60px;
+  bottom: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
   background-color: var(--primary-color);
   border-radius: 50%;
   box-shadow: var(--shadow);
@@ -26,38 +30,36 @@
   align-items: center;
   justify-content: center;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.3s ease;
-  border: 2px solid var(--glass-border);
+  border: 1px solid var(--glass-border);
 }
 
 #nexonetics-chat-launcher:hover {
-  transform: scale(1.1);
+  transform: scale(1.05);
   background-color: var(--primary-hover);
 }
 
 #nexonetics-chat-launcher img {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
 }
 
 /* Chat Window Container */
 #nexonetics-chat-container {
   position: fixed;
-  bottom: 100px;
-  right: 24px;
-  width: 380px;
-  height: 500px;
+  bottom: 80px;
+  right: 20px;
+  width: 320px;
+  height: 480px;
   background: var(--bg-color);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--glass-border);
-  border-radius: 24px;
+  border-radius: 16px;
   box-shadow: var(--shadow);
   z-index: 999998;
   display: none;
   flex-direction: column;
   overflow: hidden;
   transition: all 0.3s ease-in-out;
-  transform: translateY(20px);
+  transform: translateY(15px);
   opacity: 0;
 }
 
@@ -79,7 +81,7 @@
 
 #nexonetics-chat-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
@@ -126,27 +128,122 @@
   line-height: 1;
 }
 
-/* Chat Body (Placeholder) */
-#nexonetics-chat-body {
-  flex: 1;
-  padding: 20px;
+/* Chat List View */
+#nexonetics-chat-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  flex: 1;
+  overflow-y: auto;
+  background: white;
+}
+
+.nexonetics-chat-item {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  gap: 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.nexonetics-chat-item:hover {
+  background: #F8F9FA;
+}
+
+.nexonetics-chat-item .nexonetics-avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.nexonetics-chat-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.nexonetics-chat-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.nexonetics-chat-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nexonetics-chat-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.nexonetics-chat-snippet {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Chat Room Room View */
+#nexonetics-chat-room-container {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  background: white;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+}
+
+#nexonetics-chat-room-container.active {
+  display: flex;
+}
+
+.nexonetics-back-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  margin-right: 10px;
+}
+
+/* Chat Body Adjustments */
+#nexonetics-chat-body {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   overflow-y: auto;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #F5F7FA;
 }
 
 .chat-bubble {
-  padding: 10px 16px;
-  border-radius: 18px;
-  max-width: 80%;
-  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  max-width: 85%;
+  font-size: 13px;
   line-height: 1.4;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .chat-bubble.received {
-  background: #E5E5EA;
+  background: #FFFFFF;
   color: var(--text-primary);
   align-self: flex-start;
   border-bottom-left-radius: 4px;
@@ -159,22 +256,46 @@
   border-bottom-right-radius: 4px;
 }
 
+.chat-bubble-time {
+  font-size: 9px;
+  opacity: 0.7;
+  display: block;
+  margin-top: 2px;
+  text-align: right;
+}
+
+#nexonetics-empty-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 24px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+#nexonetics-empty-list svg {
+  margin-bottom: 12px;
+  opacity: 0.3;
+}
+
 /* Chat Input Field */
 #nexonetics-chat-footer {
-  padding: 16px;
-  border-top: 1px solid var(--glass-border);
+  padding: 12px;
+  border-top: 1px solid rgba(0,0,0,0.05);
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 #nexonetics-chat-input {
   flex: 1;
-  padding: 10px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--glass-border);
+  padding: 8px 12px;
+  border-radius: 16px;
+  border: 1px solid #E5E5EA;
   background: white;
   outline: none;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 #nexonetics-chat-send {
@@ -182,8 +303,8 @@
   color: white;
   border: none;
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -199,70 +320,111 @@
 #nexonetics-login-view {
   display: flex;
   flex-direction: column;
-  padding: 30px;
+  padding: 40px 30px;
   flex: 1;
-  justify-content: center;
+  background: var(--login-bg-color);
+  color: var(--text-white);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-y: auto;
+  position: relative;
 }
 
-#nexonetics-login-view h2 {
-  margin: 0 0 10px 0;
-  font-size: 24px;
-  color: var(--text-primary);
-  text-align: center;
+#nexonetics-login-view::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(circle at 20% 30%, rgba(119, 190, 240, 0.1) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 70%, rgba(32, 160, 144, 0.1) 0%, transparent 50%);
+  pointer-events: none;
 }
 
-#nexonetics-login-view p {
-  margin: 0 0 24px 0;
-  font-size: 14px;
-  color: var(--text-secondary);
-  text-align: center;
+.nexonetics-welcome-container {
+  margin-bottom: 40px;
+  z-index: 1;
+}
+
+.nexonetics-welcome-text {
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--text-white);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.nexonetics-back-text {
+  font-size: 36px;
+  font-weight: 800;
+  color: #B28DFF; /* Purple accent */
+  line-height: 1.1;
+  margin: 0;
 }
 
 .nexonetics-input-group {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  z-index: 1;
 }
 
-.nexonetics-input-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.nexonetics-input-group input {
-  width: 100%;
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid var(--glass-border);
-  background: white;
-  outline: none;
-  font-size: 14px;
-  box-sizing: border-box;
+.nexonetics-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: var(--input-bg);
+  border-radius: 16px;
+  padding: 4px 16px;
+  gap: 12px;
+  border: 1px solid transparent;
   transition: border-color 0.2s;
 }
 
-.nexonetics-input-group input:focus {
+.nexonetics-input-wrapper:focus-within {
   border-color: var(--primary-color);
+}
+
+.nexonetics-input-wrapper svg {
+  color: var(--text-white);
+  opacity: 0.7;
+}
+
+.nexonetics-input-wrapper input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 12px 0;
+  color: var(--text-white);
+  outline: none;
+  font-size: 15px;
+}
+
+.nexonetics-input-wrapper input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 #nexonetics-login-btn {
   width: 100%;
-  padding: 14px;
-  border-radius: 12px;
+  height: 60px;
+  border-radius: 25px;
   border: none;
-  background: var(--primary-color);
+  background: var(--button-gradient);
   color: white;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
-  margin-top: 10px;
+  transition: transform 0.2s, opacity 0.2;
+  margin-top: 20px;
+  box-shadow: 0 4px 15px rgba(119, 190, 240, 0.3);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 #nexonetics-login-btn:hover {
-  background: var(--primary-hover);
+  opacity: 0.9;
+  transform: translateY(-2px);
 }
 
 #nexonetics-login-btn:active {
@@ -271,14 +433,47 @@
 
 #nexonetics-login-error {
   color: #FF2D1B;
-  font-size: 13px;
-  margin-top: 12px;
+  font-size: 14px;
+  margin-top: 20px;
   text-align: center;
   display: none;
+  z-index: 1;
+}
+
+.nexonetics-signup-row {
+  margin-top: auto;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  padding-top: 32px;
+  z-index: 1;
+}
+
+.nexonetics-signup-link {
+  color: var(--text-white);
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: 5px;
+  cursor: pointer;
 }
 
 /* Loading state */
 .nexonetics-loading {
   opacity: 0.7;
   pointer-events: none;
+  position: relative;
+}
+
+.nexonetics-loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: nexonetics-spin 0.8s linear infinite;
+  margin-right: 10px;
+}
+
+@keyframes nexonetics-spin {
+  to { transform: rotate(360deg); }
 }
