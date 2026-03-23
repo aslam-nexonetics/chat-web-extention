@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Simulation</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f0f2f5;
+            height: 2000px; /* To test fixed positioning */
+            padding: 50px;
+        }
+        h1 { color: #333; }
+        p { color: #666; max-width: 600px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <h1>Nexonetics Chat Extension Simulation</h1>
+    <p>This page simulates how the extension will look when injected into a website. The floating icon should appear at the bottom-right corner.</p>
+    <p>Click the launcher to open the chat window.</p>
+
+    <!-- Simulation Script (slightly modified content.js logic for local testing) -->
+    <script>
+        // Mock chrome.runtime.getURL
+        window.chrome = {
+            runtime: {
+                getURL: (path) => 'assets/icons/icon.png'
+            }
+        };
+    </script>
+    <script src="content.js"></script>
+</body>
+</html>
