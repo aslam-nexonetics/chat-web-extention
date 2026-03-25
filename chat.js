@@ -56,4 +56,9 @@ const Chat = {
   }
 };
 
-window.Chat = Chat;
+// Make it available globally in both content script (window) and service worker (self) contexts
+if (typeof window !== 'undefined') {
+  window.Chat = Chat;
+} else if (typeof self !== 'undefined') {
+  self.Chat = Chat;
+}

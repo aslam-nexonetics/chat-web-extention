@@ -2,6 +2,47 @@
   console.log("Nexonetics Chat Extension loaded.");
 
   let currentUser = null;
+  let activeChatId = null;
+
+  const DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>`;
+
+  // Helper for messaging
+  const sendBackgroundMessage = (message) => {
+    return new Promise((resolve) => {
+      if (!chrome.runtime?.id) {
+        handleContextInvalidated();
+        return resolve({ success: false, error: 'Context invalidated' });
+      }
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            if (chrome.runtime.lastError.message.includes('context invalidated')) {
+              handleContextInvalidated();
+            }
+            return resolve({ success: false, error: chrome.runtime.lastError.message });
+          }
+          resolve(response);
+        });
+      } catch (err) {
+        if (err.message.includes('context invalidated')) {
+          handleContextInvalidated();
+        }
+        resolve({ success: false, error: err.message });
+      }
+    });
+  };
+
+  const handleContextInvalidated = () => {
+    console.warn("Nexonetics: Extension context invalidated. Please refresh the page.");
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);color:white;display:flex;align-items:center;justify-content:center;z-index:10000;flex-direction:column;font-family:sans-serif;text-align:center;padding:20px;';
+    overlay.innerHTML = `
+      <h2 style="margin-bottom:10px;">Extension Updated</h2>
+      <p style="margin-bottom:20px;">The extension was recently updated or reloaded. To keep using the chat, please refresh this page.</p>
+      <button onclick="window.location.reload()" style="padding:10px 20px;background:#007bff;border:none;border-radius:5px;color:white;cursor:pointer;font-weight:bold;">Refresh Now</button>
+    `;
+    document.body.appendChild(overlay);
+  };
 
   // Create Launcher Button
   const launcher = document.createElement('div');
@@ -15,38 +56,17 @@
   document.body.appendChild(chatContainer);
 
   const initApp = async () => {
-    const authenticated = await Auth.isAuthenticated();
-    if (authenticated) {
-      const success = await fetchUserProfile();
-      if (success) {
-        showChatView();
-      } else {
-        await Auth.logout();
-        showLoginView();
-      }
+    const response = await sendBackgroundMessage({ action: 'get_profile' });
+    if (response && response.success) {
+      currentUser = response.data;
+      showChatView();
     } else {
       showLoginView();
     }
   };
 
-  const fetchUserProfile = async () => {
-    try {
-      const authHeader = await Auth.getAuthHeader();
-      const response = await fetch(`${Auth.API_BASE_URL}/auth/me/`, {
-        headers: { ...authHeader }
-      });
-      if (response.ok) {
-        currentUser = await response.json();
-        return true;
-      }
-    } catch (err) {
-      console.error("Failed to fetch user profile", err);
-    }
-    return false;
-  };
-
   const handleLogout = async () => {
-    await Auth.logout();
+    await sendBackgroundMessage({ action: 'logout' });
     currentUser = null;
     showLoginView();
   };
@@ -88,10 +108,11 @@
   };
 
   const showChatView = async () => {
+    stopPolling(); // Ensure we stop any room polling when in list view
     chatContainer.innerHTML = `
       <div id="nexonetics-chat-header">
         <div class="nexonetics-user-profile">
-          <img src="${currentUser?.avatarUrl || 'https://via.placeholder.com/32'}" alt="Avatar" class="nexonetics-avatar">
+          <img src="${currentUser?.avatarUrl || DEFAULT_AVATAR}" alt="Avatar" class="nexonetics-avatar">
           <h3>Chats</h3>
         </div>
         <div id="nexonetics-header-actions">
@@ -115,10 +136,10 @@
     if (closeBtn) closeBtn.onclick = () => toggleWindow(false);
     if (logoutBtn) logoutBtn.onclick = handleLogout;
 
-    try {
-      const chats = await Chat.fetchChatList();
-      renderChatList(chats);
-    } catch (err) {
+    const response = await sendBackgroundMessage({ action: 'fetch_chats' });
+    if (response && response.success) {
+      renderChatList(response.data);
+    } else {
       document.getElementById('nexonetics-chat-list').innerHTML = `
         <div id="nexonetics-empty-list">
           <p>Failed to load chats. Please try again.</p>
@@ -135,7 +156,7 @@
           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           </svg>
-          <p>No chats available in ${Chat.COLLECTION}</p>
+          <p>No chats available</p>
         </div>
       `;
       return;
@@ -143,11 +164,11 @@
 
     listContainer.innerHTML = chats.map(chat => `
       <div class="nexonetics-chat-item" data-id="${chat.id}">
-        <img src="${chat.avatar_url || 'https://via.placeholder.com/48'}" alt="Avatar" class="nexonetics-avatar">
+        <img src="${chat.avatar_url || DEFAULT_AVATAR}" alt="Avatar" class="nexonetics-avatar">
         <div class="nexonetics-chat-info">
           <div class="nexonetics-chat-name-row">
             <span class="nexonetics-chat-name">${chat.display_name || chat.channel_name}</span>
-            <span class="nexonetics-chat-time">${chat.last_activity ? new Date(chat.last_activity).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+            <span class="nexonetics-chat-time">${chat.last_activity ? formatTime(chat.last_activity) : ''}</span>
           </div>
           <div class="nexonetics-chat-snippet">${chat.last_message?.message_text || 'No messages yet'}</div>
         </div>
@@ -164,6 +185,7 @@
   };
 
   const showChatRoomView = async (room) => {
+    activeChatId = room.id;
     // Create or show room container
     let roomContainer = document.getElementById('nexonetics-chat-room-container');
     if (!roomContainer) {
@@ -181,7 +203,7 @@
           </svg>
         </button>
         <div class="nexonetics-user-profile">
-          <img src="${room.avatar_url || 'https://via.placeholder.com/32'}" alt="Avatar" class="nexonetics-avatar">
+          <img src="${room.avatar_url || DEFAULT_AVATAR}" alt="Avatar" class="nexonetics-avatar">
           <h3>${room.display_name || room.channel_name}</h3>
         </div>
         <span id="nexonetics-chat-close">&times;</span>
@@ -205,52 +227,65 @@
     const closeBtn = roomContainer.querySelector('#nexonetics-chat-close');
     const inputField = document.getElementById('nexonetics-chat-input');
     const sendBtn = document.getElementById('nexonetics-chat-send');
-    const chatBody = document.getElementById('nexonetics-chat-body');
 
     backBtn.onclick = () => {
+      stopPolling();
       roomContainer.classList.remove('active');
       showChatView();
     };
-    closeBtn.onclick = () => toggleWindow(false);
+    closeBtn.onclick = () => {
+      stopPolling();
+      toggleWindow(false);
+    };
 
     const loadMessages = async () => {
-      try {
-        const messages = await Chat.fetchMessages(room.id);
-        renderMessages(messages);
-      } catch (err) {
-        chatBody.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Failed to load messages.</p>';
+      const response = await sendBackgroundMessage({ action: 'fetch_messages', chatId: room.id });
+      if (response && response.success) {
+        renderMessages(response.data);
+      } else {
+        document.getElementById('nexonetics-chat-body').innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Failed to load messages.</p>';
       }
     };
 
-    const renderMessages = (messages) => {
-      const sortedMessages = [...messages].reverse();
-      chatBody.innerHTML = sortedMessages.map(msg => `
-        <div class="chat-bubble ${msg.user_id === currentUser.id ? 'sent' : 'received'}">
-          ${msg.message_text}
-          <span class="chat-bubble-time">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-        </div>
-      `).join('');
-      chatBody.scrollTop = chatBody.scrollHeight;
-    };
-
+    let isSending = false;
     const sendMessage = async () => {
       const text = inputField.value.trim();
-      if (!text) return;
+      if (!text || isSending) return;
 
+      // 1. Immediately clear input and disable to prevent double clicks
+      const originalText = text;
+      inputField.value = '';
       inputField.disabled = true;
       sendBtn.style.opacity = '0.5';
+      isSending = true;
 
-      try {
-        await Chat.sendMessage(room.id, text);
-        inputField.value = '';
-        await loadMessages();
-      } catch (err) {
-        console.error("Failed to send message", err);
-      } finally {
-        inputField.disabled = false;
-        sendBtn.style.opacity = '1';
-        inputField.focus();
+      // 2. Optimistic UI: Add message to list immediately
+      const tempMsg = {
+        id: 'temp-' + Date.now(),
+        message_text: originalText,
+        user_id: currentUser.id,
+        created_at: new Date().toISOString(),
+        isOptimistic: true
+      };
+      renderMessages(tempMsg);
+
+      const response = await sendBackgroundMessage({ action: 'send_message', chatId: room.id, text: originalText });
+      
+      if (!response || !response.success) {
+        console.error("Failed to send message", response?.error);
+        // On failure, remove the optimistic message and restore text
+        currentMessages = currentMessages.filter(m => m.id !== tempMsg.id);
+        renderMessages(currentMessages);
+        inputField.value = originalText;
+      } else {
+        // On success, replace the optimistic message with the real server data instantly
+        renderMessages(response.data);
       }
+      
+      isSending = false;
+      inputField.disabled = false;
+      sendBtn.style.opacity = '1';
+      inputField.focus();
     };
 
     sendBtn.onclick = sendMessage;
@@ -260,16 +295,52 @@
 
     // Initial load
     await loadMessages();
-
-        // Start polling for new messages (every 5 seconds)
-    const pollInterval = setInterval(async () => {
-      if (roomContainer.classList.contains('active') && chatContainer.classList.contains('open')) {
-        await loadMessages();
-      } else {
-        clearInterval(pollInterval);
-      }
-    }, 5000);
+    startPolling(room.id);
   };
+
+  let currentMessages = [];
+  const renderMessages = (data) => {
+    const chatBody = document.getElementById('nexonetics-chat-body');
+    if (!chatBody) return;
+
+    if (Array.isArray(data)) {
+      currentMessages = [...data].reverse();
+    } else if (data && typeof data === 'object') {
+      // If we receive a real message that matches an optimistic one (same text), 
+      // replace the optimistic one.
+      const optimisticIndex = currentMessages.findIndex(m => m.isOptimistic && m.message_text === data.message_text);
+      if (optimisticIndex !== -1) {
+        currentMessages[optimisticIndex] = data; // Replace with real data (ID, timestamp)
+      } else if (!currentMessages.some(m => m.id === data.id)) {
+        currentMessages.push(data);
+      }
+    }
+
+    chatBody.innerHTML = currentMessages.map(msg => `
+      <div class="chat-bubble ${msg.user_id === currentUser.id ? 'sent' : 'received'} ${msg.isOptimistic ? 'optimistic' : ''}">
+        ${msg.message_text}
+        <span class="chat-bubble-time">${msg.isOptimistic ? 'Sending...' : formatTime(msg.created_at)}</span>
+      </div>
+    `).join('');
+    chatBody.scrollTop = chatBody.scrollHeight;
+  };
+
+  const startPolling = (chatId) => {
+    sendBackgroundMessage({ action: 'start_polling', chatId });
+  };
+
+  const stopPolling = () => {
+    activeChatId = null;
+    currentMessages = [];
+    sendBackgroundMessage({ action: 'stop_polling' });
+  };
+
+  // Listen for updates from background
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'new_messages' && message.chatId === activeChatId) {
+      renderMessages(message.data);
+    }
+  });
 
   const setupLoginListeners = () => {
     const loginBtn = document.getElementById('nexonetics-login-btn');
@@ -281,26 +352,27 @@
     if (closeBtn) closeBtn.onclick = () => toggleWindow(false);
 
     loginBtn.onclick = async () => {
-      const email_or_username = emailInput.value.trim();
+      const email = emailInput.value.trim();
       const password = passwordInput.value.trim();
 
-      if (!email_or_username || !password) return;
+      if (!email || !password) return;
 
       loginBtn.classList.add('nexonetics-loading');
       loginBtn.innerHTML = '<div class="nexonetics-loading-spinner"></div> LOGGING IN...';
       errorMsg.style.display = 'none';
 
-      try {
-        await Auth.login(email_or_username, password);
-        await fetchUserProfile();
+      const response = await sendBackgroundMessage({ action: 'login', email, password });
+      if (response && response.success) {
+        const profileRes = await sendBackgroundMessage({ action: 'get_profile' });
+        currentUser = profileRes.data;
         showChatView();
-      } catch (err) {
-        errorMsg.textContent = err.message || 'Login failed. Please try again.';
+      } else {
+        errorMsg.textContent = response?.error || 'Login failed. Please try again.';
         errorMsg.style.display = 'block';
-      } finally {
-        loginBtn.classList.remove('nexonetics-loading');
-        loginBtn.innerHTML = 'Log In';
       }
+      
+      loginBtn.classList.remove('nexonetics-loading');
+      loginBtn.innerHTML = 'Log In';
     };
   };
 
@@ -325,7 +397,17 @@
     }
   };
 
+  const formatTime = (dateStr) => {
+    if (!dateStr) return '';
+    // Ensure UTC interpretation if no timezone is present
+    const cleanDateStr = dateStr.includes('Z') || dateStr.includes('+') ? dateStr : dateStr.replace(' ', 'T') + 'Z';
+    const date = new Date(cleanDateStr);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   launcher.onclick = () => toggleWindow();
+
+  console.log("%cNexonetics Chat Extension: Ready. %c(To see logic logs, check the 'Service Worker' console in chrome://extensions)", "color: #00ff00; font-weight: bold;", "color: #888;");
 
   initApp();
 })();

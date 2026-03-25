@@ -96,5 +96,9 @@ const Auth = {
   }
 };
 
-// Make it available globally in the content script context
-window.Auth = Auth;
+// Make it available globally in both content script (window) and service worker (self) contexts
+if (typeof window !== 'undefined') {
+  window.Auth = Auth;
+} else if (typeof self !== 'undefined') {
+  self.Auth = Auth;
+}
