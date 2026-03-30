@@ -115,9 +115,14 @@
       <div id="nexonetics-chat-header">
         <div class="nexonetics-user-profile">
           <img src="${currentUser?.avatarUrl || DEFAULT_AVATAR}" alt="Avatar" class="nexonetics-avatar">
-          <h3>Your Collections</h3>
+          <h3>My Collections</h3>
         </div>
         <div id="nexonetics-header-actions">
+          <button id="nexonetics-discover-btn" title="Discover Collections">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"></path>
+            </svg>
+          </button>
           <button id="nexonetics-logout-btn" title="Logout">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
               <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"></path>
@@ -135,8 +140,10 @@
 
     const closeBtn = document.getElementById('nexonetics-chat-close');
     const logoutBtn = document.getElementById('nexonetics-logout-btn');
+    const discoverBtn = document.getElementById('nexonetics-discover-btn');
     if (closeBtn) closeBtn.onclick = () => toggleWindow(false);
     if (logoutBtn) logoutBtn.onclick = handleLogout;
+    if (discoverBtn) discoverBtn.onclick = showDiscoverCollectionsView;
 
     const response = await sendBackgroundMessage({ action: 'fetch_collections' });
     if (response && response.success) {
@@ -147,6 +154,98 @@
           <p>Failed to load collections. Please try again.</p>
         </div>
       `;
+    }
+  };
+
+  const showDiscoverCollectionsView = async () => {
+    chatContainer.innerHTML = `
+      <div id="nexonetics-chat-header">
+        <div class="nexonetics-user-profile">
+          <button class="nexonetics-back-btn" id="nexonetics-back-to-my-collections">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+          </button>
+          <h3>Discover</h3>
+        </div>
+        <div id="nexonetics-header-actions">
+          <span id="nexonetics-chat-close">&times;</span>
+        </div>
+      </div>
+      <div id="nexonetics-collection-list">
+        <div class="nexonetics-loading-container" style="display: flex; justify-content: center; padding: 40px;">
+          <div class="nexonetics-loading-spinner" style="border-top-color: var(--primary-color);"></div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('nexonetics-chat-close').onclick = () => toggleWindow(false);
+    document.getElementById('nexonetics-back-to-my-collections').onclick = showCollectionsView;
+
+    const response = await sendBackgroundMessage({ action: 'fetch_available_collections' });
+    if (response && response.success) {
+      renderDiscoverList(response.data);
+    } else {
+      document.getElementById('nexonetics-collection-list').innerHTML = `
+        <div id="nexonetics-empty-list">
+          <p>Failed to load available collections.</p>
+        </div>
+      `;
+    }
+  };
+
+  const renderDiscoverList = (collections) => {
+    const listContainer = document.getElementById('nexonetics-collection-list');
+    if (!collections || collections.length === 0) {
+      listContainer.innerHTML = `
+        <div id="nexonetics-empty-list">
+          <p>No new collections found.</p>
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = collections.map(col => `
+      <div class="nexonetics-collection-item">
+        <div class="nexonetics-collection-icon">${col.collection_name?.charAt(0) || 'C'}</div>
+        <div class="nexonetics-collection-info">
+          <div class="nexonetics-collection-name">${col.collection_name}</div>
+          <div class="nexonetics-collection-desc">${col.description || 'Join to start chatting'}</div>
+        </div>
+        <button class="nexonetics-join-btn" data-id="${col.id}">Join</button>
+      </div>
+    `).join('');
+
+    listContainer.querySelectorAll('.nexonetics-join-btn').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const collectionId = btn.getAttribute('data-id');
+        await handleJoinCollection(collectionId, btn);
+      };
+    });
+  };
+
+  const handleJoinCollection = async (collectionId, btnElement) => {
+    btnElement.classList.add('loading');
+    btnElement.innerText = '...';
+    
+    const response = await sendBackgroundMessage({ 
+      action: 'join_collection', 
+      collectionId, 
+      userId: currentUser.id 
+    });
+
+    if (response && response.success) {
+      btnElement.innerText = 'Joined';
+      btnElement.style.background = '#20A090'; // Success color
+      setTimeout(() => {
+        showCollectionsView();
+      }, 1000);
+    } else {
+      btnElement.classList.remove('loading');
+      btnElement.innerText = 'Join';
+      console.error("Join failed:", response?.error);
+      alert("Failed to join collection. Please try again.");
     }
   };
 

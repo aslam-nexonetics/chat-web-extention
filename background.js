@@ -180,6 +180,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'fetch_available_collections') {
+    Chat.fetchAllCollections()
+      .then(collections => sendResponse({ success: true, data: collections }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (request.action === 'join_collection') {
+    Chat.joinCollection(request.collectionId, request.userId)
+      .then(res => sendResponse({ success: true, data: res }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (request.action === 'fetch_chats') {
     // Connect socket for the requested collection
     connectWebSocket(request.collectionName);

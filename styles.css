@@ -259,6 +259,52 @@
   font-weight: 600;
 }
 
+/* Discover/Join Button Styles */
+.nexonetics-join-btn {
+  background: var(--button-gradient);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  box-shadow: 0 2px 8px rgba(119, 190, 240, 0.2);
+}
+
+.nexonetics-join-btn:hover {
+  opacity: 0.9;
+}
+
+.nexonetics-join-btn.loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+#nexonetics-discover-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#nexonetics-discover-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+#nexonetics-discover-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
 /* Chat Room Room View */
 #nexonetics-chat-room-container {
   display: none;

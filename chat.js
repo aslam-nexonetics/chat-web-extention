@@ -67,6 +67,46 @@ const Chat = {
       console.error('Send message error:', error);
       throw error;
     }
+  },
+
+  async fetchAllCollections() {
+    try {
+      const authHeader = await Auth.getAuthHeader();
+      const response = await fetch(`${Auth.API_BASE_URL}/user-collections/available-collections/`, {
+        headers: { ...authHeader }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to fetch all collections');
+      return data || [];
+    } catch (error) {
+      console.error('Fetch all collections error:', error);
+      throw error;
+    }
+  },
+
+  async joinCollection(collectionId, userId) {
+    try {
+      const authHeader = await Auth.getAuthHeader();
+      const response = await fetch(`${Auth.API_BASE_URL}/user-collections/collections/${collectionId}/users/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader
+        },
+        body: JSON.stringify({
+          collection_id: collectionId,
+          role: 'viewer',
+          permissions: {},
+          user_id: userId
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to join collection');
+      return data;
+    } catch (error) {
+      console.error('Join collection error:', error);
+      throw error;
+    }
   }
 };
 
