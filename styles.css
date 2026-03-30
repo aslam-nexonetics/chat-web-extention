@@ -191,6 +191,74 @@
   text-overflow: ellipsis;
 }
 
+/* Collection List View */
+#nexonetics-collection-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  background: white;
+}
+
+.nexonetics-collection-item {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  gap: 15px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.nexonetics-collection-item:hover {
+  background: #F8F9FA;
+  padding-left: 24px;
+}
+
+.nexonetics-collection-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--button-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(119, 190, 240, 0.2);
+}
+
+.nexonetics-collection-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.nexonetics-collection-name {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.nexonetics-collection-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nexonetics-collection-badge {
+  background: #B28DFF;
+  color: white;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
 /* Chat Room Room View */
 #nexonetics-chat-room-container {
   display: none;

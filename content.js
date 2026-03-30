@@ -3,6 +3,7 @@
 
   let currentUser = null;
   let activeChatId = null;
+  let activeCollectionName = null;
 
   const DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>`;
 
@@ -59,7 +60,7 @@
     const response = await sendBackgroundMessage({ action: 'get_profile' });
     if (response && response.success) {
       currentUser = response.data;
-      showChatView();
+      showCollectionsView();
     } else {
       showLoginView();
     }
@@ -68,6 +69,7 @@
   const handleLogout = async () => {
     await sendBackgroundMessage({ action: 'logout' });
     currentUser = null;
+    activeCollectionName = null;
     showLoginView();
   };
 
@@ -107,13 +109,13 @@
     setupLoginListeners();
   };
 
-  const showChatView = async () => {
-    stopPolling(); // Ensure we stop any room polling when in list view
+  const showCollectionsView = async () => {
+    activeCollectionName = null;
     chatContainer.innerHTML = `
       <div id="nexonetics-chat-header">
         <div class="nexonetics-user-profile">
           <img src="${currentUser?.avatarUrl || DEFAULT_AVATAR}" alt="Avatar" class="nexonetics-avatar">
-          <h3>Chats</h3>
+          <h3>Your Collections</h3>
         </div>
         <div id="nexonetics-header-actions">
           <button id="nexonetics-logout-btn" title="Logout">
@@ -124,7 +126,7 @@
           <span id="nexonetics-chat-close">&times;</span>
         </div>
       </div>
-      <div id="nexonetics-chat-list">
+      <div id="nexonetics-collection-list">
         <div class="nexonetics-loading-container" style="display: flex; justify-content: center; padding: 40px;">
           <div class="nexonetics-loading-spinner" style="border-top-color: var(--primary-color);"></div>
         </div>
@@ -136,19 +138,89 @@
     if (closeBtn) closeBtn.onclick = () => toggleWindow(false);
     if (logoutBtn) logoutBtn.onclick = handleLogout;
 
-    const response = await sendBackgroundMessage({ action: 'fetch_chats' });
+    const response = await sendBackgroundMessage({ action: 'fetch_collections' });
     if (response && response.success) {
-      renderChatList(response.data);
+      renderCollectionList(response.data);
     } else {
-      document.getElementById('nexonetics-chat-list').innerHTML = `
+      document.getElementById('nexonetics-collection-list').innerHTML = `
         <div id="nexonetics-empty-list">
-          <p>Failed to load chats. Please try again.</p>
+          <p>Failed to load collections. Please try again.</p>
         </div>
       `;
     }
   };
 
-  const renderChatList = (chats) => {
+  const renderCollectionList = (collections) => {
+    const listContainer = document.getElementById('nexonetics-collection-list');
+    if (!collections || collections.length === 0) {
+      listContainer.innerHTML = `
+        <div id="nexonetics-empty-list">
+          <p>You haven't joined any collections yet.</p>
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = collections.map(col => `
+      <div class="nexonetics-collection-item" data-name="${col.collection_name}">
+        <div class="nexonetics-collection-icon">${col.collection_name?.charAt(0) || 'C'}</div>
+        <div class="nexonetics-collection-info">
+          <div class="nexonetics-collection-name">${col.collection_name}</div>
+          <div class="nexonetics-collection-desc">${col.description || 'View chats and messages'}</div>
+        </div>
+      </div>
+    `).join('');
+
+    listContainer.querySelectorAll('.nexonetics-collection-item').forEach(item => {
+      item.onclick = () => {
+        const name = item.getAttribute('data-name');
+        showChatView(name);
+      };
+    });
+  };
+
+  const showChatView = async (collectionName) => {
+    activeCollectionName = collectionName;
+    stopPolling(); 
+    chatContainer.innerHTML = `
+      <div id="nexonetics-chat-header">
+        <button class="nexonetics-back-btn" id="nexonetics-back-to-collections">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"></path>
+          </svg>
+        </button>
+        <div class="nexonetics-user-profile">
+          <h3>${collectionName} Chats</h3>
+        </div>
+        <div id="nexonetics-header-actions">
+          <span id="nexonetics-chat-close">&times;</span>
+        </div>
+      </div>
+      <div id="nexonetics-chat-list">
+        <div class="nexonetics-loading-container" style="display: flex; justify-content: center; padding: 40px;">
+          <div class="nexonetics-loading-spinner" style="border-top-color: var(--primary-color);"></div>
+        </div>
+      </div>
+    `;
+
+    const closeBtn = document.getElementById('nexonetics-chat-close');
+    const backBtn = document.getElementById('nexonetics-back-to-collections');
+    if (closeBtn) closeBtn.onclick = () => toggleWindow(false);
+    if (backBtn) backBtn.onclick = showCollectionsView;
+
+    const response = await sendBackgroundMessage({ action: 'fetch_chats', collectionName });
+    if (response && response.success) {
+      renderChatList(collectionName, response.data);
+    } else {
+      document.getElementById('nexonetics-chat-list').innerHTML = `
+        <div id="nexonetics-empty-list">
+          <p>Failed to load chats for ${collectionName}.</p>
+        </div>
+      `;
+    }
+  };
+
+  const renderChatList = (collectionName, chats) => {
     const listContainer = document.getElementById('nexonetics-chat-list');
     if (!chats || chats.length === 0) {
       listContainer.innerHTML = `
@@ -156,7 +228,7 @@
           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           </svg>
-          <p>No chats available</p>
+          <p>No chats available in this collection</p>
         </div>
       `;
       return;
@@ -179,12 +251,12 @@
       item.onclick = () => {
         const chatId = item.getAttribute('data-id');
         const chat = chats.find(c => c.id == chatId);
-        showChatRoomView(chat);
+        showChatRoomView(collectionName, chat);
       };
     });
   };
 
-  const showChatRoomView = async (room) => {
+  const showChatRoomView = async (collectionName, room) => {
     activeChatId = room.id;
     // Create or show room container
     let roomContainer = document.getElementById('nexonetics-chat-room-container');
@@ -231,7 +303,7 @@
     backBtn.onclick = () => {
       stopPolling();
       roomContainer.classList.remove('active');
-      showChatView();
+      showChatView(collectionName);
     };
     closeBtn.onclick = () => {
       stopPolling();
@@ -239,7 +311,11 @@
     };
 
     const loadMessages = async () => {
-      const response = await sendBackgroundMessage({ action: 'fetch_messages', chatId: room.id });
+      const response = await sendBackgroundMessage({ 
+        action: 'fetch_messages', 
+        collectionName, 
+        chatId: room.id 
+      });
       if (response && response.success) {
         renderMessages(response.data);
       } else {
@@ -252,14 +328,12 @@
       const text = inputField.value.trim();
       if (!text || isSending) return;
 
-      // 1. Immediately clear input and disable to prevent double clicks
       const originalText = text;
       inputField.value = '';
       inputField.disabled = true;
       sendBtn.style.opacity = '0.5';
       isSending = true;
 
-      // 2. Optimistic UI: Add message to list immediately
       const tempMsg = {
         id: 'temp-' + Date.now(),
         message_text: originalText,
@@ -269,16 +343,19 @@
       };
       renderMessages(tempMsg);
 
-      const response = await sendBackgroundMessage({ action: 'send_message', chatId: room.id, text: originalText });
+      const response = await sendBackgroundMessage({ 
+        action: 'send_message', 
+        collectionName, 
+        chatId: room.id, 
+        text: originalText 
+      });
       
       if (!response || !response.success) {
         console.error("Failed to send message", response?.error);
-        // On failure, remove the optimistic message and restore text
         currentMessages = currentMessages.filter(m => m.id !== tempMsg.id);
         renderMessages(currentMessages);
         inputField.value = originalText;
       } else {
-        // On success, replace the optimistic message with the real server data instantly
         renderMessages(response.data);
       }
       
@@ -293,7 +370,6 @@
       if (e.key === 'Enter') sendMessage();
     };
 
-    // Initial load
     await loadMessages();
     startPolling(room.id);
   };
@@ -306,11 +382,9 @@
     if (Array.isArray(data)) {
       currentMessages = [...data].reverse();
     } else if (data && typeof data === 'object') {
-      // If we receive a real message that matches an optimistic one (same text), 
-      // replace the optimistic one.
       const optimisticIndex = currentMessages.findIndex(m => m.isOptimistic && m.message_text === data.message_text);
       if (optimisticIndex !== -1) {
-        currentMessages[optimisticIndex] = data; // Replace with real data (ID, timestamp)
+        currentMessages[optimisticIndex] = data; 
       } else if (!currentMessages.some(m => m.id === data.id)) {
         currentMessages.push(data);
       }
@@ -365,7 +439,7 @@
       if (response && response.success) {
         const profileRes = await sendBackgroundMessage({ action: 'get_profile' });
         currentUser = profileRes.data;
-        showChatView();
+        showCollectionsView();
       } else {
         errorMsg.textContent = response?.error || 'Login failed. Please try again.';
         errorMsg.style.display = 'block';
@@ -399,15 +473,12 @@
 
   const formatTime = (dateStr) => {
     if (!dateStr) return '';
-    // Ensure UTC interpretation if no timezone is present
     const cleanDateStr = dateStr.includes('Z') || dateStr.includes('+') ? dateStr : dateStr.replace(' ', 'T') + 'Z';
     const date = new Date(cleanDateStr);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   launcher.onclick = () => toggleWindow();
-
-  console.log("%cNexonetics Chat Extension: Ready. %c(To see logic logs, check the 'Service Worker' console in chrome://extensions)", "color: #00ff00; font-weight: bold;", "color: #888;");
 
   initApp();
 })();

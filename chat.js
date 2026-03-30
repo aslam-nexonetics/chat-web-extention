@@ -1,10 +1,24 @@
 const Chat = {
-  COLLECTION: 'Nexonetics',
-
-  async fetchChatList() {
+  async fetchCollections() {
     try {
       const authHeader = await Auth.getAuthHeader();
-      const response = await fetch(`${Auth.API_BASE_URL}/chat/${this.COLLECTION}/chat/list/`, {
+      const response = await fetch(`${Auth.API_BASE_URL}/user-collections/my-collections/`, {
+        headers: { ...authHeader }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to fetch collections');
+      // The API returns a list where each item has a "collection" object
+      return data.map(item => item.collection) || [];
+    } catch (error) {
+      console.error('Fetch collections error:', error);
+      throw error;
+    }
+  },
+
+  async fetchChatList(collectionName) {
+    try {
+      const authHeader = await Auth.getAuthHeader();
+      const response = await fetch(`${Auth.API_BASE_URL}/chat/${collectionName}/chat/list/`, {
         headers: { ...authHeader }
       });
       const data = await response.json();
@@ -16,10 +30,10 @@ const Chat = {
     }
   },
 
-  async fetchMessages(roomId, page = 1, size = 50) {
+  async fetchMessages(collectionName, roomId, page = 1, size = 50) {
     try {
       const authHeader = await Auth.getAuthHeader();
-      const response = await fetch(`${Auth.API_BASE_URL}/chat/${this.COLLECTION}/chat/${roomId}/messages/?page=${page}&size=${size}`, {
+      const response = await fetch(`${Auth.API_BASE_URL}/chat/${collectionName}/chat/${roomId}/messages/?page=${page}&size=${size}`, {
         headers: { ...authHeader }
       });
       const data = await response.json();
@@ -31,10 +45,10 @@ const Chat = {
     }
   },
 
-  async sendMessage(roomId, text) {
+  async sendMessage(collectionName, roomId, text) {
     try {
       const authHeader = await Auth.getAuthHeader();
-      const response = await fetch(`${Auth.API_BASE_URL}/chat/${this.COLLECTION}/chat/send/`, {
+      const response = await fetch(`${Auth.API_BASE_URL}/chat/${collectionName}/chat/send/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

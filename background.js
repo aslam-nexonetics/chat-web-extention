@@ -5,17 +5,28 @@ importScripts('auth.js', 'chat.js');
 console.log("Nexonetics Background Worker started.");
 
 let socket = null;
+let currentCollectionName = null;
 let activePollingChatId = null; // Still keeps track of "active" room for join/leave
 let pingInterval = null;
 let reconnectTimeout = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
-// Initial connection
-connectWebSocket();
+function connectWebSocket(collectionName) {
+  if (!collectionName) return;
 
-function connectWebSocket() {
-  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+  // If already connected to this collection, do nothing
+  if (currentCollectionName === collectionName && socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  // If connected to a different collection, close the old one
+  if (socket) {
+    console.log(`[Socket] Closing connection for ${currentCollectionName} to switch to ${collectionName}`);
+    socket.close();
+  }
+
+  currentCollectionName = collectionName;
 
   Auth.getAuthHeader().then(async (header) => {
     try {
@@ -24,8 +35,8 @@ function connectWebSocket() {
         return;
       }
 
-      console.log("[Socket] Fetching WebSocket URL...");
-      const response = await fetch(`${Auth.API_BASE_URL}/chat/Nexonetics/chat/websocket/url/`, {
+      console.log(`[Socket] Fetching WebSocket URL for ${collectionName}...`);
+      const response = await fetch(`${Auth.API_BASE_URL}/chat/${collectionName}/chat/websocket/url/`, {
         headers: header
       });
       const data = await response.json();
@@ -38,7 +49,7 @@ function connectWebSocket() {
       socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
-        console.log("[Socket] Connected successfully");
+        console.log(`[Socket] Connected successfully to ${collectionName}`);
         reconnectAttempts = 0;
         startPing();
         if (activePollingChatId) joinRoom(activePollingChatId);
@@ -63,27 +74,32 @@ function connectWebSocket() {
       socket.onclose = () => {
         console.log("[Socket] Connection closed");
         stopPing();
-        scheduleReconnect();
+        // Only reconnect if we still have a current collection
+        if (currentCollectionName === collectionName) {
+          scheduleReconnect(collectionName);
+        }
       };
 
     } catch (err) {
       console.error("[Socket] Connection setup failed:", err);
-      scheduleReconnect();
+      if (currentCollectionName === collectionName) {
+        scheduleReconnect(collectionName);
+      }
     }
   });
 }
 
-function scheduleReconnect() {
+function scheduleReconnect(collectionName) {
   if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
     console.error("[Socket] Max reconnection attempts reached");
     return;
   }
   reconnectAttempts++;
   const delay = reconnectAttempts * 2000;
-  console.log(`[Socket] Reconnecting in ${delay}ms (Attempt ${reconnectAttempts})`);
+  console.log(`[Socket] Reconnecting to ${collectionName} in ${delay}ms (Attempt ${reconnectAttempts})`);
   
   clearTimeout(reconnectTimeout);
-  reconnectTimeout = setTimeout(connectWebSocket, delay);
+  reconnectTimeout = setTimeout(() => connectWebSocket(collectionName), delay);
 }
 
 function startPing() {
@@ -114,8 +130,6 @@ function leaveRoom(chatId) {
 }
 
 function broadcastToTabs(action, chatId, messageData) {
-  // If it's a new message from the socket, just send that single message
-  // instead of fetching the whole list. This stops redundant API calls.
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach(tab => {
       chrome.tabs.sendMessage(tab.id, { 
@@ -132,8 +146,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'login') {
     Auth.login(request.email, request.password)
       .then(data => {
-        // Trigger socket connection post-login
-        connectWebSocket();
         sendResponse({ success: true, data });
       })
       .catch(err => sendResponse({ success: false, error: err.message }));
@@ -141,6 +153,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'logout') {
+    if (socket) socket.close();
+    currentCollectionName = null;
     Auth.logout().then(() => sendResponse({ success: true }));
     return true;
   }
@@ -159,28 +173,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'fetch_collections') {
+    Chat.fetchCollections()
+      .then(collections => sendResponse({ success: true, data: collections }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (request.action === 'fetch_chats') {
-    Chat.fetchChatList()
+    // Connect socket for the requested collection
+    connectWebSocket(request.collectionName);
+    
+    Chat.fetchChatList(request.collectionName)
       .then(chats => sendResponse({ success: true, data: chats }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
 
   if (request.action === 'fetch_messages') {
-    Chat.fetchMessages(request.chatId)
+    Chat.fetchMessages(request.collectionName, request.chatId)
       .then(messages => sendResponse({ success: true, data: messages }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
 
   if (request.action === 'send_message') {
-    Chat.sendMessage(request.chatId, request.text)
+    Chat.sendMessage(request.collectionName, request.chatId, request.text)
       .then(res => sendResponse({ success: true, data: res }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
 
-  if (request.action === 'start_polling') { // We still call it start_polling but it uses Socket Join
+  if (request.action === 'start_polling') {
     activePollingChatId = request.chatId;
     joinRoom(request.chatId);
     sendResponse({ success: true });
@@ -192,3 +216,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: true });
   }
 });
+
